@@ -22,7 +22,7 @@ function App() {
     peerRef.current = new Peer(undefined, {
       host: 'localhost',
       port: 5000,
-      path: '/peerjs',
+      path: '/',
       secure: false,
     });
 
