@@ -6,6 +6,8 @@ function App() {
   const [peer] = useState(new Peer(undefined, {host: process.env.REACT_APP_PEERJS_URL, path: '/peerjs'}));
 
   const [myStream, setMyStream] = useState(null);
+  const [isWaitingForPeer, setIsWaitingForPeer] = useState(false);
+
   const myAudio = useRef(null);
 
   useEffect(() => {
@@ -18,19 +20,25 @@ function App() {
       })
       .catch(err => console.error('Failed to get local stream', err));
 
+    let isCancelled = false;
+
     peer.on('open', id => {
-      console.log('My peer ID is: ', id);
-      setMyId(id);
-      // Notify the server that this user is waiting
-      fetch(`${process.env.REACT_APP_PEERJS_URL}/wait`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ peerId: id })
-      });
-      // Try to find a peer to call
-      getPeerToCall();
+      if (!isCancelled) {
+        console.log('My peer ID is: ', id);
+        setMyId(id);
+        setIsWaitingForPeer(true);
+        fetch(`${process.env.REACT_APP_PEERJS_URL}/wait`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ peerId: id })
+        }).then(() => {
+          if (!isCancelled) {
+            getPeerToCall();
+          }
+        });
+      }
     });
 
     peer.on('call', call => {
@@ -40,11 +48,23 @@ function App() {
 
     // Clean up on unmount
     return () => {
+      isCancelled = true;
       myStream?.getTracks().forEach(track => track.stop());
     };
   }, [peer, myStream]);
 
+  useEffect(() => {
+    if (myId && !isWaitingForPeer) {
+      getPeerToCall();
+    }
+  }, [myId, isWaitingForPeer])
+
   const getPeerToCall = async () => {
+
+    if (isWaitingForPeer) {
+      return;
+    }
+    setIsWaitingForPeer(true);
     try {
       const res = await fetch(`${process.env.REACT_APP_PEERJS_URL}/pair`);
       if (res.status === 200) {
@@ -55,6 +75,8 @@ function App() {
       }
     } catch (error) {
       console.error('Error fetching peer ID:', error);
+    } finally {
+      setIsWaitingForPeer(false);
     }
   };
 
