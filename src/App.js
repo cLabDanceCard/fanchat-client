@@ -4,59 +4,62 @@ import Peer from 'peerjs';
 function App() {
   const [myId, setMyId] = useState('');
   const [callId, setCallId] = useState('');
+  const [peer] = useState(new Peer(undefined, {host: process.env.REACT_APP_PEERJS_URL, path: '/peerjs'}));
   const [myStream, setMyStream] = useState(null);
+
   const myAudio = useRef(null);
-  const peerRef = useRef(null);
 
   useEffect(() => {
-    // Access user's microphone
-    navigator.mediaDevices.getUserMedia({ audio: true })
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
       .then((stream) => {
         setMyStream(stream);
       })
       .catch((err) => {
         console.error('Failed to get audio stream:', err);
       });
-
-    // Initialize Peer object
-    peerRef.current = new Peer(undefined, {
-      host: 'localhost',
-      port: 5000,
-      path: '/',
-      secure: false,
-    });
-
-    peerRef.current.on('open', (id) => {
-      console.log('PeerJS on open with ID:', id);
-      setMyId(id);
-    });
-
-    peerRef.current.on('error', (err) => {
-      console.error('PeerJS error:', err);
-    });
-
-    return () => {
-      peerRef.current.destroy();
-    };
   }, []);
 
-  useEffect(() => {
-    // Listen for incoming calls
-    if (peerRef.current) {
-      peerRef.current.on('call', (call) => {
-        call.answer(myStream); 
-        call.on('stream', (remoteStream) => {
-          myAudio.current.srcObject = remoteStream;
-        });
+  peer.on('open', (id) => {
+    setMyId(id);
+  });
+
+  peer.on('call', (call) => {
+    call.answer(myStream); 
+    call.on('stream', (remoteStream) => {
+      myAudio.current.srcObject = remoteStream;
+      // Wait for the canplay event before playing
+      myAudio.current.addEventListener('canplay', function() {
+        let playPromise = myAudio.current.play();
+        if (playPromise !== undefined) {
+          playPromise.then(_ => {
+            // Playback started. Everything is good.
+          }).catch(error => {
+            console.error('Playback failed:', error);
+            // Handle the failure accordingly.
+          });
+        }
       });
-    }
-  }, [myStream]);
+    });
+  });
 
   const makeCall = (id) => {
     if (myStream) {
-      const call = peerRef.current.call(id, myStream);
+      const call = peer.call(id, myStream);
       call.on('stream', (remoteStream) => {
         myAudio.current.srcObject = remoteStream;
+        // Wait for the canplay event before playing
+        myAudio.current.addEventListener('canplay', function() {
+          let playPromise = myAudio.current.play();
+          if (playPromise !== undefined) {
+            playPromise.then(_ => {
+              // Playback started. Everything is good.
+            }).catch(error => {
+              console.error('Playback failed:', error);
+              // Handle the failure accordingly.
+            });
+          }
+        });
       });
     } else {
       console.error('Audio stream not available');
