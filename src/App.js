@@ -1,81 +1,77 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Peer from 'peerjs';
 
 function App() {
   const [myId, setMyId] = useState('');
-  const [callId, setCallId] = useState('');
   const [peer] = useState(new Peer(undefined, {host: process.env.REACT_APP_PEERJS_URL, path: '/peerjs'}));
-  const [myStream, setMyStream] = useState(null);
 
+  const [myStream, setMyStream] = useState(null);
   const myAudio = useRef(null);
 
   useEffect(() => {
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
         setMyStream(stream);
-      })
-      .catch((err) => {
-        console.error('Failed to get audio stream:', err);
-      });
-  }, []);
-
-  peer.on('open', (id) => {
-    setMyId(id);
-  });
-
-  peer.on('call', (call) => {
-    call.answer(myStream); 
-    call.on('stream', (remoteStream) => {
-      myAudio.current.srcObject = remoteStream;
-      // Wait for the canplay event before playing
-      myAudio.current.addEventListener('canplay', function() {
-        let playPromise = myAudio.current.play();
-        if (playPromise !== undefined) {
-          playPromise.then(_ => {
-            // Playback started. Everything is good.
-          }).catch(error => {
-            console.error('Playback failed:', error);
-            // Handle the failure accordingly.
-          });
+        if (myAudio.current) {
+          myAudio.current.srcObject = stream;
         }
+      })
+      .catch(err => console.error('Failed to get local stream', err));
+
+    peer.on('open', id => {
+      console.log('My peer ID is: ', id);
+      setMyId(id);
+      // Notify the server that this user is waiting
+      fetch(`${process.env.REACT_APP_PEERJS_URL}/wait`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ peerId: id })
       });
+      // Try to find a peer to call
+      getPeerToCall();
     });
-  });
+
+    peer.on('call', call => {
+      call.answer(myStream);
+      call.on('stream', handleStream);
+    });
+
+    // Clean up on unmount
+    return () => {
+      myStream?.getTracks().forEach(track => track.stop());
+    };
+  }, [peer, myStream]);
+
+  const getPeerToCall = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_PEERJS_URL}/pair`);
+      if (res.status === 200) {
+        const { peerId } = await res.json();
+        makeCall(peerId);
+      } else {
+        console.log('Waiting for another peer.');
+      }
+    } catch (error) {
+      console.error('Error fetching peer ID:', error);
+    }
+  };
 
   const makeCall = (id) => {
-    if (myStream) {
-      const call = peer.call(id, myStream);
-      call.on('stream', (remoteStream) => {
-        myAudio.current.srcObject = remoteStream;
-        // Wait for the canplay event before playing
-        myAudio.current.addEventListener('canplay', function() {
-          let playPromise = myAudio.current.play();
-          if (playPromise !== undefined) {
-            playPromise.then(_ => {
-              // Playback started. Everything is good.
-            }).catch(error => {
-              console.error('Playback failed:', error);
-              // Handle the failure accordingly.
-            });
-          }
-        });
-      });
-    } else {
-      console.error('Audio stream not available');
-    }
+    const call = peer.call(id, myStream);
+    call.on('stream', handleStream);
+  };
+
+  const handleStream = (remoteStream) => {
+    myAudio.current.srcObject = remoteStream;
+    myAudio.current.play().catch(error => console.error('Stream play failed', error));
   };
 
   return (
     <div className="App">
       <h2>Your ID: {myId}</h2>
-      <input
-        value={callId}
-        onChange={(e) => setCallId(e.target.value)}
-        placeholder="Enter ID to call"
-      />
-      <button onClick={() => makeCall(callId)}>Call</button>
-      <audio ref={myAudio} controls></audio>
+      <audio ref={myAudio} controls autoPlay />
     </div>
   );
 }
