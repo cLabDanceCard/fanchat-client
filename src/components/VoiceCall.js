@@ -6,12 +6,12 @@ const VoiceCall = () => {
   const [myId, setMyId] = useState('');
   const [friendId, setFriendId] = useState('');
   const [myStream, setMyStream] = useState(null);
+  const [inCall, setInCall] = useState(false);
 
   useEffect(() => {
-    // Request the media stream
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(stream => {
-        setMyStream(stream); // Save the stream to the component state
+        setMyStream(stream);
 
         const peer = new Peer(undefined, {
           host: process.env.REACT_APP_PEERJS_HOST || window.location.hostname,
@@ -21,12 +21,18 @@ const VoiceCall = () => {
         });
 
         peer.on('open', id => {
+          console.log('My peer ID is: ' + id)
+          addUserToWaitingList(id);
           setMyId(id);
         });
 
         peer.on('call', incomingCall => {
-          incomingCall.answer(stream); // Answer with the user's audio stream
+          setInCall(true);
+          incomingCall.answer(stream);
           incomingCall.on('stream', handleStream);
+          incomingCall.on('close', () => {
+            setInCall(false);
+          });
         });
 
         setPeer(peer);
@@ -38,7 +44,7 @@ const VoiceCall = () => {
 
   const callFriend = () => {
     if (myStream && peer) {
-      const call = peer.call(friendId, myStream); // Pass the user's audio stream
+      const call = peer.call(friendId, myStream);
       call.on('stream', handleStream);
     } else {
       console.log('Stream or Peer object is not available');
@@ -53,8 +59,24 @@ const VoiceCall = () => {
     };
   };
 
+  const addUserToWaitingList = (id) => {
+    fetch(`${process.env.REACT_APP_API_URL}/addUserToWaitingList`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ peerId: id })
+    })
+      .then(res => res.json())
+      .then(data => {
+        console.log(data);
+      })
+      .catch(err => {
+        console.error('Failed to add user to waiting list', err);
+      });
+  }
+
   return (
     <div>
+      {inCall && <p>Call in progress...</p>}
       <div>Your ID: {myId}</div>
       <input
         type="text"
