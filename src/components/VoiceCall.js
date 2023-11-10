@@ -8,7 +8,7 @@ const VoiceCall = () => {
   
   useEffect(() => {
     const peer = new Peer(undefined, {
-      host: '/',
+      host: process.env.REACT_APP_PEERJS_URL,
     });
 
     peer.on('open', id => {
