@@ -10,7 +10,7 @@ function VoiceCall() {
   useEffect(() => {
     // Create a peer connection
     peerRef.current = new Peer(undefined, {
-      host: REACT_APP_PEERJS_URL,
+      host: process.env.REACT_APP_PEERJS_URL,
       path: '/peerjs/myapp'
     });
 
