@@ -14,9 +14,10 @@ const VoiceCall = () => {
         setMyStream(stream); // Save the stream to the component state
 
         const peer = new Peer(undefined, {
-          host: '/',
-          port: '9000',
-          path: '/peerjs'
+          host: process.env.REACT_APP_PEERJS_HOST || window.location.hostname,
+          port: process.env.REACT_APP_PEERJS_PORT || window.location.port || '9000',
+          path: '/peerjs',
+          secure: process.env.REACT_APP_PEERJS_SECURE === 'true' || window.location.protocol === 'https:'
         });
 
         peer.on('open', id => {
