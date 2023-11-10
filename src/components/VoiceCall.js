@@ -1,65 +1,56 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Peer from 'peerjs';
 
-function VoiceCall() {
+const VoiceCall = () => {
+  const [peer, setPeer] = useState(null);
   const [myId, setMyId] = useState('');
-  const peerRef = useRef(null);
-  const [callId, setCallId] = useState('');
-  const myAudio = useRef(null);
-
+  const [friendId, setFriendId] = useState('');
+  
   useEffect(() => {
-    // Create a peer connection
-    peerRef.current = new Peer(undefined, {
-      host: process.env.REACT_APP_PEERJS_URL,
-      path: '/peerjs/myapp'
+    const peer = new Peer(undefined, {
+      host: '/',
+      port: '9000',
+      path: '/peerjs'
     });
 
-    // Get audio stream
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then((stream) => {
-        myAudio.current.srcObject = stream;
+    peer.on('open', id => {
+      setMyId(id);
+    });
 
-        // When the peer connection is open
-        peerRef.current.on('open', (id) => {
-          setMyId(id);
-          // Here you would likely notify the server of the new peer ID so it can be paired
-        });
+    peer.on('call', call => {
+      call.answer();
+      call.on('stream', handleStream);
+    });
 
-        // Handle incoming calls
-        peerRef.current.on('call', (call) => {
-          call.answer(stream); // Answer the call with the audio stream.
-          call.on('stream', (remoteStream) => {
-            // Use the remote stream for something
-          });
-        });
-
-        // Here you could either make a call or wait to be called
-      })
-      .catch((err) => {
-        console.error('Failed to get local stream', err);
-      });
-
-    return () => {
-      peerRef.current.destroy();
-    };
+    setPeer(peer);
   }, []);
 
-  // Function to make a call
-  const makeCall = (peerId) => {
-    const call = peerRef.current.call(peerId, myAudio.current.srcObject);
-    call.on('stream', (remoteStream) => {
-      // Use the remote stream for something
-    });
+  const callFriend = () => {
+    const call = peer.call(friendId, {});
+    call.on('stream', handleStream);
+  };
+
+  const handleStream = (stream) => {
+    const audio = document.querySelector('audio');
+    audio.srcObject = stream;
+    audio.onloadedmetadata = () => {
+      audio.play();
+    };
   };
 
   return (
-    <div className="App">
-      <h1>My Peer ID: {myId}</h1>
-      <input value={callId} onChange={(e) => setCallId(e.target.value)} placeholder="Enter ID to call" />
-      <button onClick={() => makeCall(callId)}>Call</button>
-      <audio ref={myAudio} controls autoPlay />
+    <div>
+      <div>Your ID: {myId}</div>
+      <input
+        type="text"
+        value={friendId}
+        onChange={e => setFriendId(e.target.value)}
+        placeholder="Friend ID"
+      />
+      <button onClick={callFriend}>Call</button>
+      <audio controls autoPlay />
     </div>
   );
-}
+};
 
 export default VoiceCall;
