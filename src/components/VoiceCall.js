@@ -5,27 +5,43 @@ const VoiceCall = () => {
   const [peer, setPeer] = useState(null);
   const [myId, setMyId] = useState('');
   const [friendId, setFriendId] = useState('');
-  
+  const [myStream, setMyStream] = useState(null);
+
   useEffect(() => {
-    const peer = new Peer(undefined, {
-      host: process.env.REACT_APP_PEERJS_URL,
-    });
+    // Request the media stream
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        setMyStream(stream); // Save the stream to the component state
 
-    peer.on('open', id => {
-      setMyId(id);
-    });
+        const peer = new Peer(undefined, {
+          host: '/',
+          port: '9000',
+          path: '/peerjs'
+        });
 
-    peer.on('call', call => {
-      call.answer();
-      call.on('stream', handleStream);
-    });
+        peer.on('open', id => {
+          setMyId(id);
+        });
 
-    setPeer(peer);
+        peer.on('call', incomingCall => {
+          incomingCall.answer(stream); // Answer with the user's audio stream
+          incomingCall.on('stream', handleStream);
+        });
+
+        setPeer(peer);
+      })
+      .catch(err => {
+        console.error('Failed to get local stream', err);
+      });
   }, []);
 
   const callFriend = () => {
-    const call = peer.call(friendId, {});
-    call.on('stream', handleStream);
+    if (myStream && peer) {
+      const call = peer.call(friendId, myStream); // Pass the user's audio stream
+      call.on('stream', handleStream);
+    } else {
+      console.log('Stream or Peer object is not available');
+    }
   };
 
   const handleStream = (stream) => {
