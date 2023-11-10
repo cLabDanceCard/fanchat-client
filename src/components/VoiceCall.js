@@ -15,7 +15,7 @@ const VoiceCall = () => {
 
         const peer = new Peer(undefined, {
           host: process.env.REACT_APP_PEERJS_HOST || window.location.hostname,
-          port: process.env.REACT_APP_PEERJS_PORT || window.location.port || '9000',
+          port: process.env.REACT_APP_PEERJS_PORT || (process.env.REACT_APP_PEERJS_SECURE === 'true' ? 443 : 80),
           path: '/peerjs',
           secure: process.env.REACT_APP_PEERJS_SECURE === 'true' || window.location.protocol === 'https:'
         });
